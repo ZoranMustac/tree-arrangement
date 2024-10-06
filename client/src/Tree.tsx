@@ -3,15 +3,15 @@ import axios from "axios";
 
 interface Node {
   id: number;
-  name: string;
-  parent_id: number | null;
-  position: number;
+  title: string;
+  parent_node_id: number | null;
+  ordering: number;
 }
 
 const Tree: React.FC = () => {
   const [tree, setTree] = useState<Node[]>([]);
-  const [newNodeName, setNewNodeName] = useState("");
-  const [parentId, setParentId] = useState<number | null>(null);
+  const [newNodeTitle, setNewNodeTitle] = useState(""); // Updated to match the title column
+  const [parentId, setParentId] = useState<number | null>(null); // Parent node ID
 
   // Fetch the tree from the backend
   useEffect(() => {
@@ -25,37 +25,61 @@ const Tree: React.FC = () => {
 
   // Add a new node
   const addNode = async () => {
-    await axios.post("http://localhost:5000/api/nodes", {
-      name: newNodeName,
-      parent_id: parentId,
-    });
-    setNewNodeName("");
-    fetchTree(); // Refresh the tree after adding
+    if (newNodeTitle.trim() === "") {
+      alert("Node title cannot be empty");
+      return;
+    }
+
+    try {
+      await axios.post("http://localhost:5000/api/nodes", {
+        title: newNodeTitle, // Ensure title is sent
+        parent_node_id: parentId, // Ensure parent_node_id is sent
+      });
+      setNewNodeTitle(""); // Clear the input after adding
+      fetchTree(); // Refresh the tree after adding
+    } catch (error) {
+      console.error("Error adding node:", error);
+    }
   };
 
   // Delete a node
   const deleteNode = async (id: number) => {
-    await axios.delete(`http://localhost:5000/api/nodes/${id}`);
-    fetchTree(); // Refresh the tree after deleting
+    try {
+      await axios.delete(`http://localhost:5000/api/nodes/${id}`);
+      fetchTree(); // Refresh the tree after deleting
+    } catch (error) {
+      console.error("Error deleting node:", error);
+    }
   };
 
   const renderTree = (nodes: Node[], parentId: number | null = null) => {
-    const filteredNodes = nodes.filter((node) => node.parent_id === parentId);
+    const filteredNodes = nodes.filter(
+      (node) => node.parent_node_id === parentId
+    );
+
     return (
-      <ul>
+      <div className="flex justify-center my-12">
         {filteredNodes.map((node) => (
-          <li key={node.id}>
-            {node.name}
-            <button
-              onClick={() => deleteNode(node.id)}
-              className="ml-2 text-red-500"
-            >
-              Delete
-            </button>
-            {renderTree(nodes, node.id)}
-          </li>
+          <div key={node.id} className="mx-4">
+            <div className="card bg-gray-800 w-48 h-36 text-sm">
+              <div>ID: {node.id}</div>
+              <div>Title: {node.title}</div>
+              <div>
+                Parent Node:{" "}
+                {node.parent_node_id ? node.parent_node_id : "NULL"}
+              </div>
+              <div>Order: {node.ordering}</div>
+              <button
+                onClick={() => deleteNode(node.id)}
+                className="text-red-500"
+              >
+                Delete
+              </button>
+              {renderTree(nodes, node.id)}
+            </div>
+          </div>
         ))}
-      </ul>
+      </div>
     );
   };
 
@@ -64,13 +88,13 @@ const Tree: React.FC = () => {
       <h1>Tree Structure</h1>
       <input
         type="text"
-        value={newNodeName}
-        onChange={(e) => setNewNodeName(e.target.value)}
-        placeholder="New node name"
+        value={newNodeTitle}
+        onChange={(e) => setNewNodeTitle(e.target.value)} // Update the title input
+        placeholder="New node title"
       />
       <input
         type="number"
-        value={parentId ?? ""}
+        value={parentId ?? ""} // Allow null for root node
         onChange={(e) => setParentId(Number(e.target.value))}
         placeholder="Parent node ID"
       />
