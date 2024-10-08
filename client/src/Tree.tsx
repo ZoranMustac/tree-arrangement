@@ -1,19 +1,14 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-
-interface Node {
-  id: number;
-  title: string;
-  parent_node_id: number | null;
-  ordering: number;
-}
+import { Node } from "./interface";
 
 const Tree: React.FC = () => {
   const [tree, setTree] = useState<Node[]>([]);
-  const [newNodeTitle, setNewNodeTitle] = useState(""); // Updated to match the title column
-  const [parentId, setParentId] = useState<number | null>(null); // Parent node ID
+  const [newNodeTitle, setNewNodeTitle] = useState("");
+  const [parentId, setParentId] = useState<string>("");
+  const [order, setOrder] = useState<number | string>("");
+  const [editNodeId, setEditNodeId] = useState<number | null>(null);
 
-  // Fetch the tree from the backend
   useEffect(() => {
     fetchTree();
   }, []);
@@ -23,33 +18,72 @@ const Tree: React.FC = () => {
     setTree(response.data);
   };
 
-  // Add a new node
+  const resetFields = () => {
+    setNewNodeTitle("");
+    setParentId("");
+    setOrder("");
+    setEditNodeId(null);
+  };
+
   const addNode = async () => {
     if (newNodeTitle.trim() === "") {
       alert("Node title cannot be empty");
       return;
     }
 
+    const parentNodeId = parentId === "" ? null : Number(parentId);
+
     try {
       await axios.post("http://localhost:5000/api/nodes", {
-        title: newNodeTitle, // Ensure title is sent
-        parent_node_id: parentId, // Ensure parent_node_id is sent
+        title: newNodeTitle,
+        parent_node_id: parentNodeId,
       });
-      setNewNodeTitle(""); // Clear the input after adding
-      fetchTree(); // Refresh the tree after adding
+      resetFields();
+      fetchTree();
     } catch (error) {
       console.error("Error adding node:", error);
     }
   };
 
-  // Delete a node
+  const updateNode = async () => {
+    if (newNodeTitle.trim() === "") {
+      alert("Node title cannot be empty");
+      return;
+    }
+
+    const parentNodeId = parentId === "" ? null : Number(parentId);
+    const orderValue = order === "" ? null : Number(order);
+
+    try {
+      await axios.put(`http://localhost:5000/api/nodes/${editNodeId}`, {
+        title: newNodeTitle,
+        parent_node_id: parentNodeId,
+        ordering: orderValue,
+      });
+
+      resetFields();
+      fetchTree();
+    } catch (error) {
+      console.error("Error updating node:", error);
+    }
+  };
+
   const deleteNode = async (id: number) => {
     try {
       await axios.delete(`http://localhost:5000/api/nodes/${id}`);
-      fetchTree(); // Refresh the tree after deleting
+      fetchTree();
     } catch (error) {
       console.error("Error deleting node:", error);
     }
+  };
+
+  const handleEditClick = (node: Node) => {
+    setNewNodeTitle(node.title);
+    setParentId(
+      node.parent_node_id !== null ? node.parent_node_id.toString() : ""
+    );
+    setOrder(node.ordering.toString());
+    setEditNodeId(node.id);
   };
 
   const renderTree = (nodes: Node[], parentId: number | null = null) => {
@@ -58,48 +92,112 @@ const Tree: React.FC = () => {
     );
 
     return (
-      <div className="flex justify-center my-12">
-        {filteredNodes.map((node) => (
-          <div key={node.id} className="mx-4">
-            <div className="card bg-gray-800 w-48 h-36 text-sm">
-              <div>ID: {node.id}</div>
-              <div>Title: {node.title}</div>
-              <div>
-                Parent Node:{" "}
-                {node.parent_node_id ? node.parent_node_id : "NULL"}
-              </div>
-              <div>Order: {node.ordering}</div>
-              <button
-                onClick={() => deleteNode(node.id)}
-                className="text-red-500"
+      <div className="flex flex-col items-center my-2">
+        {filteredNodes.length > 0 && (
+          <div className="flex flex-row justify-center space-x-4">
+            {filteredNodes.map((node) => (
+              <div
+                key={node.id}
+                className="flex flex-col items-center mx-2 relative"
               >
-                Delete
-              </button>
-              {renderTree(nodes, node.id)}
-            </div>
+                {node.parent_node_id !== null && (
+                  <div className="absolute top-0 w-px h-8 bg-white z-0"></div>
+                )}
+                <div className="card bg-gray-800 w-24 h-auto text-xs p-2 shadow-md rounded-lg mb-2 z-0">
+                  <div>ID: {node.id}</div>
+                  <div>Title: {node.title}</div>
+                  <div>
+                    Parent Node:{" "}
+                    {node.parent_node_id !== null
+                      ? node.parent_node_id
+                      : "NULL"}
+                  </div>
+                  <div>Order: {node.ordering}</div>
+                  {node.parent_node_id !== null && (
+                    <button
+                      onClick={() => deleteNode(node.id)}
+                      className="text-red-500 hover:underline"
+                    >
+                      Delete
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleEditClick(node)}
+                    className="text-blue-500 hover:underline ml-2"
+                  >
+                    Update
+                  </button>
+                </div>
+                {renderTree(nodes, node.id)}
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
     );
   };
 
+  const scale = Math.max(0.1, 1 - (tree.length / 10) * 0.1);
+
   return (
     <div>
-      <h1>Tree Structure</h1>
-      <input
-        type="text"
-        value={newNodeTitle}
-        onChange={(e) => setNewNodeTitle(e.target.value)} // Update the title input
-        placeholder="New node title"
-      />
-      <input
-        type="number"
-        value={parentId ?? ""} // Allow null for root node
-        onChange={(e) => setParentId(Number(e.target.value))}
-        placeholder="Parent node ID"
-      />
-      <button onClick={addNode}>Add Node</button>
-      <div>{renderTree(tree)}</div>
+      <div className="fixed pt-0 top-0 bg-base-100 w-full left-0 right-0 p-4 z-10">
+        <h1>Tree Structure</h1>
+        <div className="flex justify-center space-x-4 mt-2 mb-2">
+          <div className="flex flex-col">
+            <label className="text-sm">Node Title</label>
+            <input
+              type="text"
+              value={newNodeTitle}
+              onChange={(e) => setNewNodeTitle(e.target.value)}
+              placeholder="New node title"
+              className="input-sm bg-base-200 rounded"
+            />
+          </div>
+          <div className="flex flex-col">
+            <label className="text-sm">Parent Node ID</label>
+            <input
+              type="text"
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              placeholder="Leave empty for root"
+              className="input-sm bg-base-200 rounded"
+            />
+          </div>
+          {editNodeId && (
+            <div className="flex flex-col">
+              <label className="text-sm">Order</label>
+              <input
+                type="text"
+                value={order}
+                onChange={(e) => setOrder(e.target.value)}
+                placeholder="Node Order (optional)"
+                className="input-sm bg-base-200 rounded"
+              />
+            </div>
+          )}
+        </div>
+        <button
+          onClick={editNodeId ? updateNode : addNode}
+          className="btn-sm bg-base-200 rounded"
+        >
+          {editNodeId ? "Update Node" : "Add Node"}
+        </button>
+        {editNodeId && (
+          <button
+            onClick={resetFields}
+            className="btn-sm bg-red-900 rounded ml-4"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+      <div
+        className="mt-28 flex justify-center"
+        style={{ transform: `scale(${scale})`, transformOrigin: "top center" }}
+      >
+        <div className="flex flex-col items-center">{renderTree(tree)}</div>
+      </div>
     </div>
   );
 };
