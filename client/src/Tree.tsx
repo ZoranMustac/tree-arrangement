@@ -8,14 +8,26 @@ const Tree: React.FC = () => {
   const [parentId, setParentId] = useState<string>("");
   const [order, setOrder] = useState<number | string>("");
   const [editNodeId, setEditNodeId] = useState<number | null>(null);
+  const [loading, setLoading] = useState<boolean>(true); // Track loading state
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTree();
   }, []);
 
   const fetchTree = async () => {
-    const response = await axios.get("http://localhost:5000/api/nodes");
-    setTree(response.data);
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await axios.get("http://localhost:5000/api/nodes");
+      setTree(response.data);
+    } catch (err) {
+      console.error("Error fetching tree:", err);
+      setError("Failed to load the data.");
+    } finally {
+      setLoading(false); // Set loading to false after the data is fetched
+    }
   };
 
   const resetFields = () => {
@@ -196,7 +208,11 @@ const Tree: React.FC = () => {
         className="mt-28 flex justify-center"
         style={{ transform: `scale(${scale})`, transformOrigin: "top center" }}
       >
-        <div className="flex flex-col items-center">{renderTree(tree)}</div>
+        {loading && <div>Loading...</div>}
+        {error && <div>Error: {error}</div>}
+        <div className="flex flex-col items-center">
+          {!loading && !error && renderTree(tree)}
+        </div>
       </div>
     </div>
   );
